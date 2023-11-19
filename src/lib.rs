@@ -1,6 +1,10 @@
-use num_traits::Pow;
+//! A simple crate for parsing mathematical terms.
+//! Use [`Term::from_string()`] to generate a term from infix notation and [`Term::apply()`] to use it as a formula.
+extern crate num_traits;
+
 use std::collections::HashMap;
 use std::fmt::Formatter;
+use num_traits::Pow;
 
 #[derive(Debug)]
 pub enum Error {
@@ -102,7 +106,7 @@ impl std::fmt::Display for Operator {
 }
 
 /// A mathematical term.
-/// Can be generated from a string with [from_string()] and [from_string_custom_operators()] and can be applied via [apply()]
+/// Can be generated from a string with [`Self::from_string()`] or [`Self::from_string_custom_operators()`] and can be applied via [`Self::apply()`]
 ///
 /// # Examples
 ///
