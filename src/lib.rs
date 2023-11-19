@@ -14,6 +14,7 @@ impl Error {
     }
 }
 
+/// Supported Operators for a Term.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Operator {
     Add,
@@ -100,6 +101,24 @@ impl std::fmt::Display for Operator {
     }
 }
 
+/// A mathematical term.
+/// Can be generated from a string with [from_string()] and [from_string_custom_operators()] and can be applied via [apply()]
+///
+/// # Examples
+///
+/// ```
+/// use std::collections::HashMap;
+/// use declaration::Term;
+///
+/// let term_str = "a + 2 * (b - 3.0)";
+/// let term = Term::from_string(term_str).unwrap();
+/// let mut map = HashMap::new();
+/// map.insert("a".to_string(), Term::LiteralInt(3));
+/// map.insert("b".to_string(), Term::LiteralFloat(4.0));
+/// let result = term.apply(&map).unwrap().extract_f64().unwrap();
+///
+/// assert_eq!(result, 5.0);
+/// ```
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Term {
     BinaryOperator(Operator, Box<Term>, Box<Term>),
@@ -109,6 +128,10 @@ pub enum Term {
 }
 
 impl Term {
+    /// Generate a term from a mathematical term in infix notation.
+    ///
+    /// # Arguments
+    /// * `str` - Term as string in infix notation.
     pub fn from_string(str: &str) -> Result<Term, Error> {
         Self::from_string_custom_operators(
             str,
@@ -117,6 +140,12 @@ impl Term {
         )
     }
 
+    /// Generate a term from a mathematical term in infix notation, while specifying custom operators.
+    ///
+    /// # Arguments
+    /// * `str` - Term as string in infix notation.
+    /// * `operators` - Map from String to Operator. e.g. `("+", Operator::Add)`
+    /// * `brackets` - Opening and Ending Brackets.
     pub fn from_string_custom_operators(
         str: &str,
         operators: &HashMap<String, Operator>,
@@ -127,19 +156,24 @@ impl Term {
         infix_to_term(yt)
     }
 
-    pub fn unify_literals(t1: Term, t2: Term) -> (Term, Term) {
+    /// Takes two literal terms and turns them both into integers or floats.
+    ///
+    /// # Arguments
+    /// * `t1` : First term
+    /// * `t2` : Second term
+    pub fn unify_literals(t1: Term, t2: Term) -> Result<(Term, Term), Error> {
         match t1 {
             Term::LiteralInt(i) => match t2 {
-                Term::LiteralInt(_) => (t1, t2),
-                Term::LiteralFloat(_) => (Term::LiteralFloat(i as f64), t2),
-                _ => panic!(),
+                Term::LiteralInt(_) => Ok((t1, t2)),
+                Term::LiteralFloat(_) => Ok((Term::LiteralFloat(i as f64), t2)),
+                _ => Err(Error::UnexpectedType(String::new())),
             },
             Term::LiteralFloat(_) => match t2 {
-                Term::LiteralInt(i) => (t1, Term::LiteralFloat(i as f64)),
-                Term::LiteralFloat(_) => (t1, t2),
-                _ => panic!(),
+                Term::LiteralInt(i) => Ok((t1, Term::LiteralFloat(i as f64))),
+                Term::LiteralFloat(_) => Ok((t1, t2)),
+                _ => Err(Error::UnexpectedType(String::new())),
             },
-            _ => panic!(),
+            _ => Err(Error::UnexpectedType(String::new())),
         }
     }
 
@@ -149,6 +183,10 @@ impl Term {
 
     pub fn is_float(&self) -> bool {
         matches!(self, Self::LiteralFloat(_))
+    }
+
+    pub fn is_literal(&self) -> bool {
+        matches!(self, Self::LiteralFloat(_) | Self::LiteralInt(_))
     }
 
     pub fn extract_int(&self) -> Result<i64, Error> {
@@ -187,23 +225,26 @@ impl std::fmt::Display for Term {
 }
 
 impl Term {
-    pub fn apply(&self, values: &HashMap<String, Term>) -> Result<Term, Error> {
+    /// Calculate the result of the Term for the given Map of variable names.
+    /// If the variable map is not exhaustive, it will calculate as much as possible. Well not really, it's a work in progress. Stand by for a simplify() function.
+    ///
+    /// # Arguments
+    /// `variable_map` - Map of Variable Names to Terms
+    pub fn apply(&self, variable_map: &HashMap<String, Term>) -> Result<Term, Error> {
         match self {
-            Self::BinaryOperator(op, t1, t2) => op.apply(t1.apply(values)?, t2.apply(values)?),
+            Self::BinaryOperator(op, t1, t2) => {
+                op.apply(t1.apply(variable_map)?, t2.apply(variable_map)?)
+            }
             Self::LiteralFloat(f) => Ok(Self::LiteralFloat(*f)),
             Self::LiteralInt(i) => Ok(Self::LiteralInt(*i)),
             Self::Variable(v) => {
-                if let Some(t) = values.get(v) {
+                if let Some(t) = variable_map.get(v) {
                     Ok(t.clone())
                 } else {
                     Ok(self.clone())
                 }
             }
         }
-    }
-
-    pub fn is_literal(&self) -> bool {
-        matches!(self, Self::LiteralFloat(_) | Self::LiteralInt(_))
     }
 }
 
